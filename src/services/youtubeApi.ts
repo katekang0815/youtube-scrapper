@@ -89,9 +89,8 @@ export class YouTubeAPI {
       });
             
       if (error) {
-        console.error('Error from edge function:', error);
         console.error('Edge status:', error.status);
-  console.error('Edge message:', error.message);
+        
         throw new Error(error.message || 'Failed to fetch transcript');
       }
 
