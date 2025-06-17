@@ -1,3 +1,4 @@
+
 import { YouTubeVideo, YouTubeSearchResponse, VideoStatistics, TranscriptItem } from '@/types/youtube';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -83,9 +84,7 @@ export class YouTubeAPI {
       console.log('Fetching transcript via Supabase Edge Function for video:', videoId);
   
       const { data, error } = await supabase.functions.invoke('fetch-transcript', {
-        // 1️⃣ Stringify your body
         body: JSON.stringify({ videoId }),
-        // 2️⃣ Tell the function it's JSON
         headers: { 'Content-Type': 'application/json' }
       });
   
@@ -102,6 +101,7 @@ export class YouTubeAPI {
       throw err;
     }
   }
+}
 
 export const formatDuration = (duration: string): string => {
   const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
