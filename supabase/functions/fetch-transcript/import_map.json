@@ -1,0 +1,6 @@
+
+{
+  "imports": {
+    "youtube-transcript": "npm:youtube-transcript@1.0.6"
+  }
+}
