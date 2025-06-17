@@ -81,27 +81,27 @@ export class YouTubeAPI {
   async getVideoTranscript(videoId: string): Promise<TranscriptItem[]> {
     try {
       console.log('Fetching transcript via Supabase Edge Function for video:', videoId);
-      
-      // Call our Supabase Edge Function to get the transcript
+  
       const { data, error } = await supabase.functions.invoke('fetch-transcript', {
+        // 1️⃣ Stringify your body
         body: JSON.stringify({ videoId }),
+        // 2️⃣ Tell the function it's JSON
         headers: { 'Content-Type': 'application/json' }
       });
-            
+  
       if (error) {
         console.error('Error from edge function:', error);
         throw new Error(error.message || 'Failed to fetch transcript');
       }
-
-      console.log('Successfully fetched transcript with', data?.length || 0, 'items');
-      return data || [];
-      
-    } catch (error) {
-      console.error('Error fetching transcript:', error);
-      throw error;
+  
+      console.log('Successfully fetched transcript with', (data as any[])?.length || 0, 'items');
+      return data as TranscriptItem[];
+  
+    } catch (err) {
+      console.error('Error fetching transcript:', err);
+      throw err;
     }
   }
-}
 
 export const formatDuration = (duration: string): string => {
   const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
