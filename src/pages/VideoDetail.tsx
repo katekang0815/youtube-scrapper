@@ -1,55 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, Play, Clock, FileText } from 'lucide-react';
 import { YouTubeAPI } from '@/services/youtubeApi';
-import { TranscriptItem } from '@/types/youtube';
+import type { TranscriptItem } from '@/types/youtube';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const VideoDetail: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading]     = useState(false);
+  const [error, setError]             = useState<string | null>(null);
 
   useEffect(() => {
-    if (videoId) {
-      fetchTranscript(videoId);
-    }
+    if (videoId) fetchTranscript(videoId);
   }, [videoId]);
 
   const fetchTranscript = async (id: string) => {
     setIsLoading(true);
     setError(null);
-
     try {
-      // Use the real YouTube transcript API via our edge function
-      const youtubeApi = new YouTubeAPI('demo-key'); // API key not needed for transcript function
-      const transcriptData = await youtubeApi.getVideoTranscript(id);
-      setTranscript(transcriptData);
+      // apiKey only matters for search; transcript uses your edge function
+      const youtube = new YouTubeAPI('YOUR_API_KEY_HERE');
+      const data = await youtube.getVideoTranscript(id);
+      setTranscript(data);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch transcript';
-      setError(errorMessage);
+      setError((err as Error).message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const formatTime = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2,'0')}`;
   };
 
   if (!videoId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-red-50">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Video not found</h1>
+          <h1 className="text-2xl font-bold">Video not found</h1>
           <Button onClick={() => navigate('/')} variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Home
@@ -62,22 +63,20 @@ const VideoDetail: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50">
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Button 
-            onClick={() => navigate('/')} 
-            variant="outline"
-            className="hover:bg-red-50 hover:border-red-200"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Search
-          </Button>
-        </div>
+        <Button
+          onClick={() => navigate('/')}
+          variant="outline"
+          className="mb-6 hover:bg-red-50 hover:border-red-200"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Search
+        </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Video Player Section */}
-          <Card className="bg-white/90 backdrop-blur-sm border border-gray-200/50 shadow-xl">
+          {/* Video Player */}
+          <Card className="bg-white/90 backdrop-blur-sm border-gray-200/50 shadow-xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-gray-900">
+              <CardTitle className="flex items-center gap-2">
                 <Play className="h-5 w-5 text-red-600" />
                 Video Player
               </CardTitle>
@@ -85,23 +84,21 @@ const VideoDetail: React.FC = () => {
             <CardContent>
               <div className="aspect-video bg-black rounded-lg overflow-hidden">
                 <iframe
-                  width="100%"
-                  height="100%"
                   src={`https://www.youtube.com/embed/${videoId}`}
-                  title="YouTube video player"
+                  title="YouTube player"
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   className="w-full h-full"
-                ></iframe>
+                />
               </div>
             </CardContent>
           </Card>
 
-          {/* Transcript Section */}
-          <Card className="bg-white/90 backdrop-blur-sm border border-gray-200/50 shadow-xl">
+          {/* Transcript */}
+          <Card className="bg-white/90 backdrop-blur-sm border-gray-200/50 shadow-xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-gray-900">
+              <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-red-600" />
                 Video Transcript
               </CardTitle>
@@ -110,34 +107,35 @@ const VideoDetail: React.FC = () => {
               {isLoading && (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-red-600 border-t-transparent"></div>
-                  <span className="ml-2 text-gray-600">Loading transcript...</span>
+                  <span className="ml-2">Loading transcript…</span>
                 </div>
               )}
 
               {error && (
                 <Alert variant="destructive" className="bg-red-50 border-red-200">
-                  <AlertDescription className="text-red-800">
-                    {error}
-                  </AlertDescription>
+                  <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
               {!isLoading && !error && transcript.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No transcript available for this video</p>
+                  <p>No transcript available for this video.</p>
                 </div>
               )}
 
               {transcript.length > 0 && (
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {transcript.map((item, index) => (
-                    <div key={index} className="flex gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <Badge variant="outline" className="flex items-center gap-1 shrink-0">
+                  {transcript.map((item, i) => (
+                    <div
+                      key={i}
+                      className="flex gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100"
+                    >
+                      <Badge variant="outline" className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {formatTime(item.start)}
                       </Badge>
-                      <p className="text-gray-700 leading-relaxed">{item.text}</p>
+                      <p className="leading-relaxed">{item.text}</p>
                     </div>
                   ))}
                 </div>
@@ -147,10 +145,7 @@ const VideoDetail: React.FC = () => {
         </div>
 
         <Separator className="my-8" />
-
-        <div className="text-center text-gray-500 text-sm">
-          <p>Video ID: {videoId}</p>
-        </div>
+        <p className="text-center text-gray-500 text-sm">Video ID: {videoId}</p>
       </div>
     </div>
   );
