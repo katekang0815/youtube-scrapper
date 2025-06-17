@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { fetchTranscript } from "https://esm.sh/youtube-transcript@1.0.6";
+import YoutubeTranscript from "https://esm.sh/youtube-transcript@1.0.6";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,7 +30,7 @@ serve(async (req: Request) => {
     console.log('Fetching transcript for video:', videoId);
 
     // Fetch transcript using youtube-transcript package via ESM
-    const transcript = await fetchTranscript(videoId);
+    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
     
     // Transform the data to match our TranscriptItem interface
     const formattedTranscript = transcript.map((item: any) => ({
