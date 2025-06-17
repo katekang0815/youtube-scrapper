@@ -1,147 +1,82 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
+const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN } = Deno.env();
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
-
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+async function getAccessToken() {
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: GOOGLE_REFRESH_TOKEN,
+      grant_type: "refresh_token"
+    })
+  });
+  const json = await resp.json();
+  if (!json.access_token) throw new Error("OAuth token failed");
+  return json.access_token;
+}
+serve(async (req)=>{
+  if (req.method === "OPTIONS") return new Response(null, {
+    headers: corsHeaders
+  });
   try {
     const { videoId } = await req.json();
-
-    if (!videoId) {
-      return new Response(
-        JSON.stringify({ error: "Video ID is required" }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
-      );
-    }
-
-    console.log('Fetching transcript for video:', videoId);
-
-    // First, get the video page to extract transcript data
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const videoPageResponse = await fetch(videoUrl, {
+    if (!videoId) throw new Error("Missing videoId");
+    const token = await getAccessToken();
+    // 1) List captions to get the caption ID
+    const listRes = await fetch(`https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}`, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        Authorization: `Bearer ${token}`
       }
     });
-
-    if (!videoPageResponse.ok) {
-      throw new Error('Failed to fetch video page');
-    }
-
-    const videoPageHtml = await videoPageResponse.text();
-    
-    // Extract caption tracks from the video page
-    const captionTrackRegex = /"captionTracks":\s*(\[.*?\])/;
-    const match = videoPageHtml.match(captionTrackRegex);
-    
-    if (!match) {
-      console.log('No caption tracks found in video page');
-      return new Response(
-        JSON.stringify([]),
-        { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
-      );
-    }
-
-    const captionTracks = JSON.parse(match[1]);
-    console.log('Found caption tracks:', captionTracks.length);
-    
-    if (captionTracks.length === 0) {
-      return new Response(
-        JSON.stringify([]),
-        { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
-      );
-    }
-
-    // Get the first available caption track (usually English or auto-generated)
-    const captionTrack = captionTracks.find((track: any) => 
-      track.languageCode === 'en' || track.languageCode.startsWith('en')
-    ) || captionTracks[0];
-
-    if (!captionTrack || !captionTrack.baseUrl) {
-      throw new Error('No valid caption track found');
-    }
-
-    console.log('Using caption track:', captionTrack.languageCode);
-
-    // Fetch the transcript XML
-    const transcriptResponse = await fetch(captionTrack.baseUrl);
-    
-    if (!transcriptResponse.ok) {
-      throw new Error('Failed to fetch transcript data');
-    }
-
-    const transcriptXml = await transcriptResponse.text();
-    
-    // Parse the XML to extract transcript items
-    const textRegex = /<text start="([^"]*)" dur="([^"]*)"[^>]*>([^<]*)<\/text>/g;
-    const transcriptItems = [];
-    let xmlMatch;
-    
-    while ((xmlMatch = textRegex.exec(transcriptXml)) !== null) {
-      const start = Math.floor(parseFloat(xmlMatch[1]));
-      const duration = Math.floor(parseFloat(xmlMatch[2]));
-      const text = xmlMatch[3]
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .trim();
-      
-      if (text) {
-        transcriptItems.push({
+    const listJson = await listRes.json();
+    if (!listJson.items?.length) throw new Error("No captions available");
+    const captionId = listJson.items[0].id;
+    // 2) Download that caption track in SRT format
+    const downloadRes = await fetch(`https://www.googleapis.com/youtube/v3/captions/${captionId}?tfmt=srt`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    const srt = await downloadRes.text();
+    // 3) Parse SRT into segments
+    const segments = [];
+    srt.split(/\r?\n\r?\n/).forEach((block)=>{
+      const lines = block.split(/\r?\n/);
+      if (lines.length >= 3) {
+        // lines[1] is the timing
+        const [time] = lines[1].split(" --> ");
+        const [h, m, s] = time.split(/[:,]/).map(Number);
+        const start = h * 3600 + m * 60 + s;
+        const text = lines.slice(2).join(" ").trim();
+        if (text) segments.push({
           text,
-          start,
-          duration
+          start
         });
       }
-    }
-
-    console.log('Successfully parsed transcript with', transcriptItems.length, 'items');
-
-    return new Response(
-      JSON.stringify(transcriptItems),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    });
+    return new Response(JSON.stringify(segments), {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
       }
-    );
-
-  } catch (error) {
-    console.error('Error fetching transcript:', error);
-    
-    // Handle specific error cases
-    let errorMessage = 'Failed to fetch transcript';
-    let statusCode = 500;
-
-    if (error.message?.includes('No transcript found') || error.message?.includes('No valid caption track')) {
-      errorMessage = 'No transcript available for this video';
-      statusCode = 404;
-    } else if (error.message?.includes('Video unavailable') || error.message?.includes('Failed to fetch video page')) {
-      errorMessage = 'Video is unavailable or private';
-      statusCode = 404;
-    }
-
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        status: statusCode, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    });
+  } catch (e) {
+    console.error(e);
+    return new Response(JSON.stringify({
+      error: e.message
+    }), {
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
       }
-    );
+    });
   }
 });
