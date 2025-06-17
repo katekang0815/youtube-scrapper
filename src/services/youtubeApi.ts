@@ -1,5 +1,5 @@
-
 import { YouTubeVideo, YouTubeSearchResponse, VideoStatistics, TranscriptItem } from '@/types/youtube';
+import { supabase } from '@/integrations/supabase/client';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
@@ -79,18 +79,26 @@ export class YouTubeAPI {
   }
 
   async getVideoTranscript(videoId: string): Promise<TranscriptItem[]> {
-    // Note: YouTube API v3 doesn't provide transcript access
-    // This would typically require a third-party service or scraping
-    // For demo purposes, we'll simulate transcript data
-    console.log('Fetching transcript for video:', videoId);
-    
-    // Simulated transcript data
-    return [
-      { text: "Welcome to this video about " + videoId, start: 0, duration: 3 },
-      { text: "Today we'll be discussing the main topic", start: 3, duration: 4 },
-      { text: "This is a sample transcript entry", start: 7, duration: 3 },
-      { text: "Real implementation would use a transcript service", start: 10, duration: 5 }
-    ];
+    try {
+      console.log('Fetching transcript via Supabase Edge Function for video:', videoId);
+      
+      // Call our Supabase Edge Function to get the transcript
+      const { data, error } = await supabase.functions.invoke('fetch-transcript', {
+        body: { videoId }
+      });
+
+      if (error) {
+        console.error('Error from edge function:', error);
+        throw new Error(error.message || 'Failed to fetch transcript');
+      }
+
+      console.log('Successfully fetched transcript with', data?.length || 0, 'items');
+      return data || [];
+      
+    } catch (error) {
+      console.error('Error fetching transcript:', error);
+      throw error;
+    }
   }
 }
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,8 +27,8 @@ const VideoDetail: React.FC = () => {
     setError(null);
 
     try {
-      // For demo purposes, we're using a mock API since YouTube API doesn't provide transcripts
-      const youtubeApi = new YouTubeAPI('demo-key');
+      // Use the real YouTube transcript API via our edge function
+      const youtubeApi = new YouTubeAPI('demo-key'); // API key not needed for transcript function
       const transcriptData = await youtubeApi.getVideoTranscript(id);
       setTranscript(transcriptData);
     } catch (err) {
@@ -132,14 +131,6 @@ const VideoDetail: React.FC = () => {
 
               {transcript.length > 0 && (
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  <div className="mb-4">
-                    <Alert className="bg-blue-50 border-blue-200">
-                      <AlertDescription className="text-blue-800 text-sm">
-                        <strong>Note:</strong> This is a demo transcript. Real implementation would require 
-                        a third-party transcript service as YouTube API v3 doesn't provide transcript access.
-                      </AlertDescription>
-                    </Alert>
-                  </div>
                   {transcript.map((item, index) => (
                     <div key={index} className="flex gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                       <Badge variant="outline" className="flex items-center gap-1 shrink-0">
