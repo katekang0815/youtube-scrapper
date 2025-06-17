@@ -83,21 +83,26 @@ export class YouTubeAPI {
       console.log('Fetching transcript via Supabase Edge Function for video:', videoId);
       
       // Call our Supabase Edge Function to get the transcript
-     const { data, error } = await supabase
-  .functions
-  .invoke('fetch-transcript', {
-    body: JSON.stringify({ videoId }),
-    headers: { 'Content-Type': 'application/json' }
-  });
-
-if (error) {
-  console.error('Edge status:', error.status);
+      const { data, error } = await supabase.functions.invoke('fetch-transcript', {
+        body: JSON.stringify({ videoId }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+            
+      if (error) {
+        console.error('Edge status:', error.status);
   console.error('Edge message:', error.message);
   console.error('Full error object:', error);
-  return;
-}
 
-console.log('Transcript data:', data);
+        throw new Error(error.message || 'Failed to fetch transcript');
+      }
+
+      console.log('Successfully fetched transcript with', data?.length || 0, 'items');
+      return data || [];
+      
+    } catch (error) {
+      console.error('Error fetching transcript:', error);
+      throw error;
+    }
   }
 }
 
