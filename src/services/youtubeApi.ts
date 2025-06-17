@@ -85,7 +85,7 @@ export class YouTubeAPI {
   
       const { data, error } = await supabase.functions.invoke('fetch-transcript', {
         body: JSON.stringify({ videoId }),
-        headers: { 'Content-Type': 'application/json' }
+ 
       });
   
       if (error) {
