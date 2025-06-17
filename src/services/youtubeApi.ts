@@ -84,7 +84,8 @@ export class YouTubeAPI {
       
       // Call our Supabase Edge Function to get the transcript
       const { data, error } = await supabase.functions.invoke('fetch-transcript', {
-        query: { videoId }
+        body: JSON.stringify({ videoId }),
+        headers: { 'Content-Type': 'application/json' }
       });
             
       if (error) {
