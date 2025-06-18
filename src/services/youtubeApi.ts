@@ -1,3 +1,4 @@
+
 import type {
   YouTubeVideo,
   YouTubeSearchResponse,
@@ -7,8 +8,8 @@ import type {
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const DUMPLING_ENDPOINT = 'https://api.dumplingai.com/v1/skills/get-youtube-transcript';
 
-// Grab your Dumpling key from env; React apps must prefix with REACT_APP_
-const DUMPLING_API_KEY = process.env.REACT_APP_DUMPLING_API_KEY;
+// Grab your Dumpling key from env; Vite apps use import.meta.env
+const DUMPLING_API_KEY = import.meta.env.VITE_DUMPLING_API_KEY;
 
 export class YouTubeAPI {
   private apiKey: string;
@@ -72,7 +73,7 @@ export class YouTubeAPI {
   /** NEW: fetch a transcript via Dumpling AI */
   async getVideoTranscript(videoId: string): Promise<TranscriptItem[]> {
     if (!DUMPLING_API_KEY) {
-      throw new Error('Missing REACT_APP_DUMPLING_API_KEY in environment');
+      throw new Error('Missing VITE_DUMPLING_API_KEY in environment');
     }
 
     const payload = {
