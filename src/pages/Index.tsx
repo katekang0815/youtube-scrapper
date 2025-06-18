@@ -50,7 +50,7 @@ const Index = () => {
               🚀 Free YouTube Transcript Tool
             </Badge>
             <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent mb-6">
-              YouTube Transcript
+              Trend Scrapper
             </h1>
             <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
               Extract transcripts from any YouTube video instantly. Search, analyze, and access video content like never before.
