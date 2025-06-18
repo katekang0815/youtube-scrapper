@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -7,13 +6,13 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // 1) Handle CORS preflight
+  // 1) CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
-    // 2) Parse request body
+    // 2) Parse request
     const { videoId } = await req.json();
     if (!videoId) {
       return new Response(
@@ -25,7 +24,7 @@ serve(async (req) => {
       );
     }
 
-    // 3) List available caption tracks via timedtext
+    // 3) List available tracks via timedtext
     const listRes = await fetch(
       `https://www.youtube.com/api/timedtext?type=list&v=${videoId}`
     );
@@ -33,32 +32,47 @@ serve(async (req) => {
       throw new Error(`Timedtext list failed: ${listRes.status}`);
     }
     const listXml = await listRes.text();
-    const xmlDoc = new DOMParser().parseFromString(listXml, "text/xml");
-    const trackElems = Array.from(xmlDoc.getElementsByTagName("track"));
 
-    if (trackElems.length === 0) {
-      // no captions available
+    // 4) Regex-extract all <track … /> tags
+    const trackMatches = Array.from(
+      listXml.matchAll(/<track\s+([^>]+?)\/?>/g)
+    );
+    if (trackMatches.length === 0) {
+      // No caption tracks
       return new Response(JSON.stringify([]), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 4) Pick an English track if possible
-    const chosenTrack =
-      trackElems.find((t) => t.getAttribute("lang_code") === "en") ||
-      trackElems[0];
-    const langCode = chosenTrack.getAttribute("lang_code");
+    // 5) Build a small array of { lang_code }
+    const tracks = trackMatches
+      .map((m) => {
+        const attrs = m[1];
+        const langMatch = attrs.match(/lang_code="([^"]+)"/);
+        return langMatch ? langMatch[1] : null;
+      })
+      .filter((lang): lang is string => !!lang);
 
-    // 5) Fetch the transcript in JSON3 format
+    if (tracks.length === 0) {
+      // No parsable lang_code
+      return new Response(JSON.stringify([]), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 6) Prefer English, else take the first
+    const lang = tracks.includes("en") ? "en" : tracks[0];
+
+    // 7) Fetch the JSON3 transcript
     const txRes = await fetch(
-      `https://www.youtube.com/api/timedtext?lang=${langCode}&v=${videoId}&fmt=json3`
+      `https://www.youtube.com/api/timedtext?lang=${lang}&v=${videoId}&fmt=json3`
     );
     if (!txRes.ok) {
       throw new Error(`Timedtext fetch failed: ${txRes.status}`);
     }
     const txJson = await txRes.json();
 
-    // 6) Normalize into { text, start } segments
+    // 8) Normalize into [{ text, start }]
     const segments = (txJson.events || [])
       .filter((e: any) => Array.isArray(e.segs))
       .map((e: any) => ({
@@ -67,7 +81,7 @@ serve(async (req) => {
       }))
       .filter((seg: any) => seg.text);
 
-    // 7) Return JSON response
+    // 9) Return JSON
     return new Response(JSON.stringify(segments), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
