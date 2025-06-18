@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    // 2) Parse request
+    // 2) Parse body
     const { videoId } = await req.json();
     if (!videoId) {
       return new Response(
@@ -24,7 +24,7 @@ serve(async (req) => {
       );
     }
 
-    // 3) List available tracks via timedtext
+    // 3) List transcript tracks
     const listRes = await fetch(
       `https://www.youtube.com/api/timedtext?type=list&v=${videoId}`
     );
@@ -33,39 +33,45 @@ serve(async (req) => {
     }
     const listXml = await listRes.text();
 
-    // 4) Regex-extract all <track … /> tags
+    // 4) Extract every <track …> tag
     const trackMatches = Array.from(
-      listXml.matchAll(/<track\s+([^>]+?)\/?>/g)
+      listXml.matchAll(/<track\b[^>]*>/g)
     );
     if (trackMatches.length === 0) {
-      // No caption tracks
+      // No tracks → empty transcript
       return new Response(JSON.stringify([]), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 5) Build a small array of { lang_code }
+    // 5) Pull out lang codes (lang_code or lang)
     const tracks = trackMatches
       .map((m) => {
-        const attrs = m[1];
-        const langMatch = attrs.match(/lang_code="([^"]+)"/);
+        const tag = m[0];
+        // prefer lang_code="…"
+        const codeMatch = tag.match(/lang_code="([^"]+)"/);
+        if (codeMatch) return codeMatch[1];
+        // fallback to lang="…"
+        const langMatch = tag.match(/lang="([^"]+)"/);
         return langMatch ? langMatch[1] : null;
       })
-      .filter((lang): lang is string => !!lang);
+      .filter((l): l is string => !!l);
 
     if (tracks.length === 0) {
-      // No parsable lang_code
       return new Response(JSON.stringify([]), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 6) Prefer English, else take the first
-    const lang = tracks.includes("en") ? "en" : tracks[0];
+    // 6) Choose English (en, en-US, en-GB…) if present, otherwise first track
+    const lang =
+      tracks.find((l) => l === "en" || l.startsWith("en")) || tracks[0];
 
-    // 7) Fetch the JSON3 transcript
+    // 7) Fetch the transcript in JSON3 format
     const txRes = await fetch(
-      `https://www.youtube.com/api/timedtext?lang=${lang}&v=${videoId}&fmt=json3`
+      `https://www.youtube.com/api/timedtext?lang=${encodeURIComponent(
+        lang
+      )}&v=${videoId}&fmt=json3`
     );
     if (!txRes.ok) {
       throw new Error(`Timedtext fetch failed: ${txRes.status}`);
@@ -76,12 +82,12 @@ serve(async (req) => {
     const segments = (txJson.events || [])
       .filter((e: any) => Array.isArray(e.segs))
       .map((e: any) => ({
-        text: e.segs.map((s: any) => (s.utf8 ?? s.text) || "").join(""),
+        text: e.segs.map((s: any) => s.utf8 || s.text || "").join(""),
         start: Math.floor(e.tStartMs / 1000),
       }))
       .filter((seg: any) => seg.text);
 
-    // 9) Return JSON
+    // 9) Return it
     return new Response(JSON.stringify(segments), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
