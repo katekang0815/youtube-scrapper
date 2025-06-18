@@ -101,7 +101,7 @@ const VideoDetail: React.FC = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-red-600" />
-                Video Transcript
+                Transcript Summary
               </CardTitle>
             </CardHeader>
             <CardContent>
