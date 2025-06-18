@@ -6,10 +6,6 @@ import type {
 } from '@/types/youtube';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
-const DUMPLING_ENDPOINT = 'https://api.dumplingai.com/v1/skills/get-youtube-transcript';
-
-// Grab your Dumpling key from env; Vite apps use import.meta.env
-const DUMPLING_API_KEY = import.meta.env.VITE_DUMPLING_API_KEY;
 
 export class YouTubeAPI {
   private apiKey: string;
@@ -70,41 +66,34 @@ export class YouTubeAPI {
       .sort((a, b) => parseInt(b.viewCount) - parseInt(a.viewCount));
   }
 
-  /** NEW: fetch a transcript via Dumpling AI */
+  /** Use Supabase edge function to fetch transcript */
   async getVideoTranscript(videoId: string): Promise<TranscriptItem[]> {
-    if (!DUMPLING_API_KEY) {
-      throw new Error('Missing VITE_DUMPLING_API_KEY in environment');
-    }
+    try {
+      const res = await fetch(
+        `https://kvptdktrtpetwmdfnagt.supabase.co/functions/v1/fetch-transcript`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ videoId })
+        }
+      );
 
-    const payload = {
-      name: 'get-youtube-transcript',
-      arguments: {
-        videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-        includeTimestamps: true,
-        preferredLanguage: 'en'
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Transcript fetch error (${res.status})`);
       }
-    };
 
-    const res = await fetch(DUMPLING_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DUMPLING_API_KEY}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.message || `DumplingAI error (${res.status})`);
+      const segments = await res.json();
+      return segments.map((s: any) => ({
+        text: s.text,
+        start: s.start
+      }));
+    } catch (error) {
+      console.error('Transcript fetch error:', error);
+      throw new Error('Failed to fetch transcript. The video may not have captions available.');
     }
-
-    const json = await res.json();
-    // Dumpling returns { segments: [ { text, start, duration? } ] }
-    return (json.segments || []).map((s: any) => ({
-      text: s.text,
-      start: s.start
-    }));
   }
 }
 

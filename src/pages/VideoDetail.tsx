@@ -29,12 +29,9 @@ const VideoDetail: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-      if (!apiKey) {
-        throw new Error('Google API key not configured. Please set VITE_GOOGLE_API_KEY in your environment.');
-      }
-      const youtube = new YouTubeAPI(apiKey);
-      const data = await youtube.getVideoTranscript(videoId);
+      // Use a placeholder key since we'll be using Supabase edge function for transcript
+      const youtube = new YouTubeAPI('placeholder');
+      const data = await youtube.getVideoTranscript(id);
       console.log("📝 transcript response:", data);
       setTranscript(data);
     } catch (err) {
