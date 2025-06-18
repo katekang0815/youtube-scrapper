@@ -1,56 +1,19 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// CORS configuration
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Load OAuth credentials from environment
-const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
-const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
-const GOOGLE_REFRESH_TOKEN = Deno.env.get("GOOGLE_REFRESH_TOKEN");
-
-if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REFRESH_TOKEN) {
-  throw new Error(
-    "Missing one of GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_REFRESH_TOKEN in environment"
-  );
-}
-
-/**
- * Exchange the refresh token for a short-lived access token
- */
-async function getAccessToken(): Promise<string> {
-  const resp = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      refresh_token: GOOGLE_REFRESH_TOKEN,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  const j = await resp.json();
-  console.log("⚙️ token-refresh response:", j);
-
-  if (!j.access_token) {
-    throw new Error(
-      `Could not refresh token: ${j.error || j.error_description || JSON.stringify(j)}`
-    );
-  }
-
-  return j.access_token;
-}
-
 serve(async (req) => {
-  // Handle CORS preflight
+  // 1) Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
+    // 2) Parse request body
     const { videoId } = await req.json();
     if (!videoId) {
       return new Response(
@@ -62,66 +25,57 @@ serve(async (req) => {
       );
     }
 
-    // 1) Refresh Google access token
-    const token = await getAccessToken();
-
-    // 2) List available caption tracks
+    // 3) List available caption tracks via timedtext
     const listRes = await fetch(
-      `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${videoId}`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      `https://www.youtube.com/api/timedtext?type=list&v=${videoId}`
     );
     if (!listRes.ok) {
-      throw new Error(`Caption list request failed: ${listRes.statusText}`);
+      throw new Error(`Timedtext list failed: ${listRes.status}`);
+    }
+    const listXml = await listRes.text();
+    const xmlDoc = new DOMParser().parseFromString(listXml, "text/xml");
+    const trackElems = Array.from(xmlDoc.getElementsByTagName("track"));
+
+    if (trackElems.length === 0) {
+      // no captions available
+      return new Response(JSON.stringify([]), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const listJson = await listRes.json();
-    if (!listJson.items?.length) {
-      return new Response(
-        JSON.stringify({ error: "No captions available for this video" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    // 4) Pick an English track if possible
+    const chosenTrack =
+      trackElems.find((t) => t.getAttribute("lang_code") === "en") ||
+      trackElems[0];
+    const langCode = chosenTrack.getAttribute("lang_code");
 
-    // Use the first available track
-    const captionId = listJson.items[0].id;
-
-    // 3) Download caption as SRT
-    const downloadRes = await fetch(
-      `https://www.googleapis.com/youtube/v3/captions/${captionId}?tfmt=srt`,
-      { headers: { Authorization: `Bearer ${token}` } }
+    // 5) Fetch the transcript in JSON3 format
+    const txRes = await fetch(
+      `https://www.youtube.com/api/timedtext?lang=${langCode}&v=${videoId}&fmt=json3`
     );
-    if (!downloadRes.ok) {
-      throw new Error(`Caption download failed: ${downloadRes.statusText}`);
+    if (!txRes.ok) {
+      throw new Error(`Timedtext fetch failed: ${txRes.status}`);
     }
+    const txJson = await txRes.json();
 
-    const srt = await downloadRes.text();
+    // 6) Normalize into { text, start } segments
+    const segments = (txJson.events || [])
+      .filter((e: any) => Array.isArray(e.segs))
+      .map((e: any) => ({
+        text: e.segs.map((s: any) => (s.utf8 ?? s.text) || "").join(""),
+        start: Math.floor(e.tStartMs / 1000),
+      }))
+      .filter((seg: any) => seg.text);
 
-    // 4) Parse SRT into segments
-    const segments: Array<{ text: string; start: number }> = [];
-    srt.split(/\r?\n\r?\n/).forEach((block) => {
-      const lines = block.split(/\r?\n/);
-      if (lines.length >= 3) {
-        // Parse timing line: "HH:MM:SS,mmm --> HH:MM:SS,mmm"
-        const [time] = lines[1].split(" --> ");
-        const [h, m, s] = time.replace(",", ":").split(/[:,]/).map(Number);
-        const start = h * 3600 + m * 60 + s;
-        const text = lines.slice(2).join(" ").trim();
-        if (text) {
-          segments.push({ text, start });
-        }
-      }
-    });
-
+    // 7) Return JSON response
     return new Response(JSON.stringify(segments), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
-    console.error("Error in fetch-transcript:", e);
+
+  } catch (err: any) {
+    console.error("Error in fetch-transcript:", err);
     return new Response(
-      JSON.stringify({ error: e.message || "Internal Server Error" }),
+      JSON.stringify({ error: err.message || "Internal server error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
