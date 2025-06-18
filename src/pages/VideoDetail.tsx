@@ -201,12 +201,19 @@ const VideoDetail: React.FC = () => {
         <div className="flex flex-col items-center gap-4">
           <p className="text-center text-gray-500 text-sm">Video ID: {videoId}</p>
           
-          <Button >Play Script Summary</Button>
-            
-                
-
-         
-          </div>
+          <Button onClick={handlePlayScript}>
+            {isPlaying ? (
+              <>
+                <VolumeX className="h-4 w-4 mr-2" />
+                Stop Audio
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-4 w-4 mr-2" />
+                {ttsLoading ? 'Converting...' : 'Play Script Summary'}
+              </>
+            )}
+          </Button>
         </div>
       </div>
     </div>
