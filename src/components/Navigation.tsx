@@ -17,7 +17,7 @@ const Navigation = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="text-xl font-bold text-gray-900">
-            Trend Scrapper
+            
           </Link>
           
           <div className="flex items-center space-x-4">
