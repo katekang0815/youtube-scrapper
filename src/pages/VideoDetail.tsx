@@ -201,34 +201,11 @@ const VideoDetail: React.FC = () => {
         <div className="flex flex-col items-center gap-4">
           <p className="text-center text-gray-500 text-sm">Video ID: {videoId}</p>
           
-          <Button 
-            onClick={handlePlayScript}
-            disabled={ttsLoading || transcript.length === 0}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
-            size="lg"
-          >
-            {ttsLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                Converting to Speech...
-              </>
-            ) : isPlaying ? (
-              <>
-                <VolumeX className="h-4 w-4" />
-                Stop Audio
-              </>
-            ) : (
-              <>
-                <Volume2 className="h-4 w-4" />
-                Play Script Summary
-              </>
-            )}
-          </Button>
-          
-          {/* Debug info */}
-          <div className="text-xs text-gray-400 text-center">
-            <p>Debug: Transcript items: {transcript.length}</p>
-            <p>TTS Loading: {ttsLoading ? 'Yes' : 'No'}, Playing: {isPlaying ? 'Yes' : 'No'}</p>
+          <Button >Play Script Summary</Button>
+            
+                
+
+         
           </div>
         </div>
       </div>
