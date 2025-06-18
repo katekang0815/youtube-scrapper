@@ -53,12 +53,17 @@ const VideoDetail: React.FC = () => {
   };
 
   const handlePlayScript = async () => {
+    console.log('🎵 Play button clicked');
+    console.log('🎵 Current state - isPlaying:', isPlaying, 'ttsLoading:', ttsLoading);
+    
     if (isPlaying) {
+      console.log('🎵 Stopping audio...');
       stopAudio();
       return;
     }
 
     if (transcript.length === 0) {
+      console.log('❌ No transcript available');
       toast({
         title: "No transcript available",
         description: "Cannot play audio for videos without transcripts.",
@@ -68,12 +73,15 @@ const VideoDetail: React.FC = () => {
     }
 
     try {
+      console.log('🎵 Converting transcript to speech...');
       // Create a summary of the transcript
       const transcriptText = transcript.map(item => item.text).join(' ');
       const summary = transcriptText.length > 1000 
         ? transcriptText.substring(0, 1000) + '...' 
         : transcriptText;
 
+      console.log('🎵 Transcript summary length:', summary.length);
+      
       await convertToSpeech(summary);
       
       toast({
@@ -81,7 +89,7 @@ const VideoDetail: React.FC = () => {
         description: "Audio playback started successfully."
       });
     } catch (error) {
-      console.error('TTS Error:', error);
+      console.error('❌ TTS Error:', error);
       toast({
         title: "Audio conversion failed",
         description: (error as Error).message || "Failed to convert transcript to speech.",
@@ -216,6 +224,12 @@ const VideoDetail: React.FC = () => {
               </>
             )}
           </Button>
+          
+          {/* Debug info */}
+          <div className="text-xs text-gray-400 text-center">
+            <p>Debug: Transcript items: {transcript.length}</p>
+            <p>TTS Loading: {ttsLoading ? 'Yes' : 'No'}, Playing: {isPlaying ? 'Yes' : 'No'}</p>
+          </div>
         </div>
       </div>
     </div>
