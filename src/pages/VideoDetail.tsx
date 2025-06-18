@@ -30,7 +30,7 @@ const VideoDetail: React.FC = () => {
     setError(null);
     try {
       // apiKey only matters for search; transcript uses your edge function
-      const youtube = new YouTubeAPI('YOUR_API_KEY_HERE');
+      const youtube = new YouTubeAPI('AIzaSyARXeG-NsIv-MfZCVe3mqqIR5EOFwAo3L0');
       const data = await youtube.getVideoTranscript(id);
       console.log("📝 transcript response:", data);
       setTranscript(data);

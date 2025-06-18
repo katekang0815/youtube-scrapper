@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import type {
   YouTubeVideo,
   YouTubeSearchResponse,
@@ -5,10 +6,6 @@ import type {
 } from '@/types/youtube';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
-const DUMPLING_ENDPOINT = 'https://api.dumplingai.com/v1/skills/get-youtube-transcript';
-
-// In Vite, use import.meta.env instead of process.env
-const DUMPLING_API_KEY = import.meta.env.VITE_DUMPLING_API_KEY;
 
 export class YouTubeAPI {
   private apiKey: string;
@@ -17,13 +14,13 @@ export class YouTubeAPI {
     this.apiKey = apiKey;
   }
 
-  /** Unchanged: search for recent, popular videos */
+  /** Search for videos (last 24h, sorted by viewCount) */
   async searchVideos(keyword: string): Promise<YouTubeVideo[]> {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const publishedAfter = yesterday.toISOString();
 
-    // 1) Search
+    // 1) search
     const searchRes = await fetch(
       `${YOUTUBE_API_BASE}/search?part=snippet` +
       `&q=${encodeURIComponent(keyword)}` +
@@ -39,7 +36,7 @@ export class YouTubeAPI {
     const searchData: YouTubeSearchResponse = await searchRes.json();
     if (!searchData.items?.length) return [];
 
-    // 2) Fetch stats
+    // 2) stats
     const ids = searchData.items.map(item => item.id.videoId).join(',');
     const statsRes = await fetch(
       `${YOUTUBE_API_BASE}/videos?part=statistics,contentDetails` +
@@ -51,74 +48,53 @@ export class YouTubeAPI {
     }
     const statsData = await statsRes.json();
 
-    // 3) Merge results
-    return searchData.items
-      .map((item, i) => {
-        const stats = statsData.items?.[i];
-        return {
-          id: item.id.videoId,
-          title: item.snippet.title,
-          channelTitle: item.snippet.channelTitle,
-          thumbnails: item.snippet.thumbnails,
-          publishedAt: item.snippet.publishedAt,
-          description: item.snippet.description,
-          viewCount: stats?.statistics.viewCount ?? '0',
-          duration: stats?.contentDetails.duration ?? 'PT0S'
-        };
-      })
-      .sort((a, b) => parseInt(b.viewCount) - parseInt(a.viewCount));
+    // 3) merge
+    return searchData.items.map((item, i) => {
+      const stats = statsData.items?.[i];
+      return {
+        id: item.id.videoId,
+        title: item.snippet.title,
+        channelTitle: item.snippet.channelTitle,
+        thumbnails: item.snippet.thumbnails,
+        publishedAt: item.snippet.publishedAt,
+        description: item.snippet.description,
+        viewCount: stats?.statistics.viewCount ?? '0',
+        duration: stats?.contentDetails.duration ?? 'PT0S'
+      };
+    })
+    .sort((a, b) => parseInt(b.viewCount) - parseInt(a.viewCount));
   }
 
-  /** NEW: fetch a transcript via Dumpling AI */
+  /** Fetch a transcript via our Supabase Edge Function */
   async getVideoTranscript(videoId: string): Promise<TranscriptItem[]> {
-    if (!DUMPLING_API_KEY) {
-      throw new Error('Missing VITE_DUMPLING_API_KEY in environment');
-    }
-
-    const payload = {
-      name: 'get-youtube-transcript',
-      arguments: {
-        videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-        includeTimestamps: true,
-        preferredLanguage: 'en'
-      }
-    };
-
-    const res = await fetch(DUMPLING_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DUMPLING_API_KEY}`
-      },
-      body: JSON.stringify(payload)
+    const { data, error } = await supabase.functions.invoke('fetch-transcript', {
+      body: JSON.stringify({ videoId }),
     });
 
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.message || `DumplingAI error (${res.status})`);
+    if (error) {
+      console.error('Edge function error:', error);
+      throw new Error(error.message || 'Failed to fetch transcript');
     }
 
-    const json = await res.json();
-    // Dumpling returns { segments: [ { text, start, duration? } ] }
-    return (json.segments || []).map((s: any) => ({
-      text: s.text,
-      start: s.start
-    }));
+    // data is expected to be Array<{ text: string; start: number }>
+    return data as TranscriptItem[];
   }
 }
 
-/** Helper formatting functions (unchanged)… */
+/** Helpers you already had below… */
 export const formatDuration = (duration: string): string => {
   const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
   if (!match) return '0:00';
-  const hours   = parseInt(match[1]?.replace('H','') || '0');
-  const minutes = parseInt(match[2]?.replace('M','') || '0');
-  const seconds = parseInt(match[3]?.replace('S','') || '0');
+  
+  const hours = parseInt(match[1]?.replace('H', '') || '0');
+  const minutes = parseInt(match[2]?.replace('M', '') || '0');
+  const seconds = parseInt(match[3]?.replace('S', '') || '0');
+  
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2,'0')}:` +
-           seconds.toString().padStart(2,'0');
+    return `${hours}:${minutes.toString().padStart(2, '0')}:` +
+           seconds.toString().padStart(2, '0');
   }
-  return `${minutes}:${seconds.toString().padStart(2,'0')}`;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
 export const formatViewCount = (count: string): string => {
