@@ -8,7 +8,7 @@ const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const DUMPLING_ENDPOINT = 'https://api.dumplingai.com/v1/skills/get-youtube-transcript';
 
 // Grab your Dumpling key from env; React apps must prefix with REACT_APP_
-const DUMPLING_API_KEY = process.env.REACT_APP_DUMPLING_API_KEY;
+const DUMPLING_API_KEY = import.meta.env.VITE_DUMPLING_API_KEY
 
 export class YouTubeAPI {
   private apiKey: string;
