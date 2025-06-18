@@ -27,7 +27,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading }) => {
     <Card className="w-full max-w-2xl mx-auto bg-white/90 backdrop-blur-sm border border-gray-200/50 shadow-xl">
       <CardHeader className="text-center">
         <CardTitle className="text-3xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">
-          YouTube Video Finder
+          YouTube Trend Scrapper
         </CardTitle>
         <p className="text-gray-600 mt-2">
           Find the top 10 most viewed videos from the last 24 hours
