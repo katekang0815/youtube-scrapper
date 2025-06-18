@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -9,10 +10,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Play, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, Play, Clock, FileText, Volume2, VolumeX } from 'lucide-react';
 import { YouTubeAPI } from '@/services/youtubeApi';
 import type { TranscriptItem } from '@/types/youtube';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTextToSpeech } from '@/hooks/useTextToSpeech';
+import { useToast } from '@/hooks/use-toast';
 
 const VideoDetail: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
@@ -20,6 +23,8 @@ const VideoDetail: React.FC = () => {
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { convertToSpeech, stopAudio, isLoading: ttsLoading, isPlaying } = useTextToSpeech();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (videoId) fetchTranscript(videoId);
@@ -45,6 +50,44 @@ const VideoDetail: React.FC = () => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}:${s.toString().padStart(2,'0')}`;
+  };
+
+  const handlePlayScript = async () => {
+    if (isPlaying) {
+      stopAudio();
+      return;
+    }
+
+    if (transcript.length === 0) {
+      toast({
+        title: "No transcript available",
+        description: "Cannot play audio for videos without transcripts.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Create a summary of the transcript
+      const transcriptText = transcript.map(item => item.text).join(' ');
+      const summary = transcriptText.length > 1000 
+        ? transcriptText.substring(0, 1000) + '...' 
+        : transcriptText;
+
+      await convertToSpeech(summary);
+      
+      toast({
+        title: "Playing transcript summary",
+        description: "Audio playback started successfully."
+      });
+    } catch (error) {
+      console.error('TTS Error:', error);
+      toast({
+        title: "Audio conversion failed",
+        description: (error as Error).message || "Failed to convert transcript to speech.",
+        variant: "destructive"
+      });
+    }
   };
 
   if (!videoId) {
@@ -146,7 +189,34 @@ const VideoDetail: React.FC = () => {
         </div>
 
         <Separator className="my-8" />
-        <p className="text-center text-gray-500 text-sm">Video ID: {videoId}</p>
+        
+        <div className="flex flex-col items-center gap-4">
+          <p className="text-center text-gray-500 text-sm">Video ID: {videoId}</p>
+          
+          <Button 
+            onClick={handlePlayScript}
+            disabled={ttsLoading || transcript.length === 0}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+            size="lg"
+          >
+            {ttsLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                Converting to Speech...
+              </>
+            ) : isPlaying ? (
+              <>
+                <VolumeX className="h-4 w-4" />
+                Stop Audio
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-4 w-4" />
+                Play Script Summary
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
