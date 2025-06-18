@@ -18,8 +18,8 @@ const VideoDetail: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
-  const [isLoading, setIsLoading]     = useState(false);
-  const [error, setError]             = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (videoId) fetchTranscript(videoId);
@@ -29,8 +29,11 @@ const VideoDetail: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // apiKey only matters for search; transcript uses your edge function
-      const youtube = new YouTubeAPI('AIzaSyARXeG-NsIv-MfZCVe3mqqIR5EOFwAo3L0');
+      const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+      if (!apiKey) {
+        throw new Error('Google API key not configured. Please set VITE_GOOGLE_API_KEY in your environment.');
+      }
+      const youtube = new YouTubeAPI(apiKey);
       const data = await youtube.getVideoTranscript(videoId);
       console.log("📝 transcript response:", data);
       setTranscript(data);

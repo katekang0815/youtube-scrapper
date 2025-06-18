@@ -3,6 +3,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_DUMPLING_API_KEY: string
+  readonly VITE_GOOGLE_API_KEY: string
   // add other env variables here as needed
 }
 
